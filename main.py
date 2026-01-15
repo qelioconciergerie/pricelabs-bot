@@ -11,11 +11,9 @@ def estimation():
     adresse = data.get("adresse")
     chambres = data.get("chambres")
 
-    # Vérifie que les champs sont bien présents
     if not adresse or not chambres:
         return jsonify({"error": "Champs manquants"}), 400
 
-    # Simule une estimation (remplace par ta logique réelle)
     estimation_result = {
         "revenu_mensuel": 2000,
         "revenu_annuel": 24000,
@@ -25,7 +23,7 @@ def estimation():
         "occupation": "85%"
     }
 
-    return jsonify(estimation_result), 200
+    return jsonify(estimation_result)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
