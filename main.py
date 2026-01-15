@@ -8,70 +8,73 @@ import time
 
 app = Flask(__name__)
 
+@app.route("/", methods=["GET"])
+def home():
+    return "✅ Bot is running"
+
 @app.route("/estimation", methods=["POST"])
-def estimation():
+def estimate():
+    data = request.get_json()
+    adresse = data.get("adresse")
+    chambres = data.get("chambres")
+
+    if not adresse or not chambres:
+        return jsonify({"error": "Adresse ou chambres manquants"}), 400
+
     try:
-        data = request.json
-        adresse = data.get("adresse")
-        auteur = data.get("auteur")
-        chambres = data.get("chambres")
-
-        if not adresse or not auteur or not chambres:
-            return jsonify({"error": "Champs manquants"}), 400
-
-        # Configuration de Selenium avec Chrome Headless
+        # Setup Chrome en headless (sans interface graphique)
         chrome_options = Options()
         chrome_options.add_argument("--headless")
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
-
         driver = webdriver.Chrome(options=chrome_options)
 
-        driver.get("https://www.pricelabs.co/market-dashboard/estimator")
+        # Aller sur la page du simulateur
+        driver.get("https://hello.pricelabs.co/fr/calculer-votre-estimation-de-revenus/")
 
         wait = WebDriverWait(driver, 15)
 
-        # Adresse
-        adresse_input = wait.until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[placeholder*='adresse']")))
-        adresse_input.clear()
-        adresse_input.send_keys(adresse)
+        # Remplir l’adresse
+        champ_adresse = wait.until(EC.presence_of_element_located((By.ID, "address")))
+        champ_adresse.clear()
+        champ_adresse.send_keys(adresse)
         time.sleep(2)
 
-        # Devise
-        currency_select = driver.find_element(By.CSS_SELECTOR, "select[name='currency']")
-        currency_select.send_keys("EUR")
+        # Choisir la devise (EUR)
+        select_devise = wait.until(EC.presence_of_element_located((By.ID, "currency")))
+        select_devise.send_keys("EUR")
 
         # Nombre de chambres
-        chambre_select = driver.find_element(By.CSS_SELECTOR, "select[name='bedrooms']")
-        chambre_select.send_keys(str(chambres))
+        select_chambres = wait.until(EC.presence_of_element_located((By.ID, "bedrooms")))
+        select_chambres.send_keys(str(chambres))
+        time.sleep(1)
 
-        # Bouton d'estimation
-        button = driver.find_element(By.CSS_SELECTOR, "button[type='submit']")
-        button.click()
+        # Attendre que les résultats apparaissent
+        revenu_annuel_el = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(),'Revenus annuels')]/following-sibling::div")))
+        revenu_annuel = revenu_annuel_el.text
 
-        time.sleep(5)
+        revenu_mensuel = str(int(int(revenu_annuel.replace("€", "").replace(",", "").replace("/mo", "").strip()) / 12))
 
-        # Récupération des résultats
-        revenu_mensuel = driver.find_element(By.XPATH, "//h2[contains(text(), '€/mo')]").text.replace("€/mo", "").strip()
-        revenu_annuel = driver.find_element(By.XPATH, "//div[contains(text(),'Revenus de')]").text.split("€")[-1].strip()
-
-        percentile_25 = driver.find_element(By.XPATH, "//div[contains(text(),'25e percentile')]/following-sibling::div").text.replace("€", "").strip()
-        percentile_50 = driver.find_element(By.XPATH, "//div[contains(text(),'50e percentile')]/following-sibling::div").text.replace("€", "").strip()
-        percentile_75 = driver.find_element(By.XPATH, "//div[contains(text(),'75e percentile')]/following-sibling::div").text.replace("€", "").strip()
-        occupation = driver.find_element(By.XPATH, "//div[contains(text(),'Occupation moyenne')]/following-sibling::div").text.replace("%", "").strip()
+        # Percentiles et autres
+        p25 = driver.find_element(By.XPATH, "//div[contains(text(),'25e percentile')]/following-sibling::div").text
+        p50 = driver.find_element(By.XPATH, "//div[contains(text(),'50e percentile')]/following-sibling::div").text
+        p75 = driver.find_element(By.XPATH, "//div[contains(text(),'75e percentile')]/following-sibling::div").text
+        occupation = driver.find_element(By.XPATH, "//div[contains(text(),'Occupation moyenne')]/following-sibling::div").text
 
         driver.quit()
 
         return jsonify({
-            "revenu_mensuel": revenu_mensuel,
             "revenu_annuel": revenu_annuel,
-            "percentile_25": percentile_25,
-            "percentile_50": percentile_50,
-            "percentile_75": percentile_75,
+            "revenu_mensuel": revenu_mensuel,
+            "percentile_25": p25,
+            "percentile_50": p50,
+            "percentile_75": p75,
             "occupation": occupation
         })
 
     except Exception as e:
+        if 'driver' in locals():
+            driver.quit()
         return jsonify({"error": str(e)}), 500
 
 if __name__ == "__main__":
