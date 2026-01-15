@@ -79,3 +79,19 @@ def estimate():
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
+
+@app.route('/', methods=['POST'])
+def estimation():
+    print("➡️ Requête reçue")
+    data = request.json
+    print("📦 Données reçues:", data)
+
+    try:
+        # Ton scraping ici...
+        result = scrap_pricelabs(data['adresse'], data['chambres'])
+        print("✅ Résultat:", result)
+        return jsonify(result)
+    except Exception as e:
+        print("❌ Erreur serveur:", e)
+        return jsonify({"error": str(e)}), 500
+
